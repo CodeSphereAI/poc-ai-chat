@@ -19,6 +19,8 @@ public class Program
         ChatCompletion chat = await client.CompleteChatAsync("Hello");
         Console.WriteLine(chat.Content[0].Text);
 
+        List<ChatMessage> messages = new();
+
         while (true)
         {
             Console.Write("Ask anything: ");
@@ -28,9 +30,13 @@ public class Program
             {
                 break;
             }
+            messages.Add(new UserChatMessage(request));
 
-            ChatCompletion response = await client.CompleteChatAsync(request);
-            Console.WriteLine($"AI replied: {response.Content[0].Text}");
+            ChatCompletion response = await client.CompleteChatAsync(messages);
+            string responseText = response.Content[0].Text;
+            Console.WriteLine($"AI replied: {responseText}");
+
+            messages.Add(new AssistantChatMessage(responseText));
         }
     }
 }
