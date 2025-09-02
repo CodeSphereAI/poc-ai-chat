@@ -13,4 +13,9 @@
     <PackageReference Include="Microsoft.KernelMemory.Core" Version="0.98.250508.3" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="embeddings\" />
+    <Folder Include="files\" />
+  </ItemGroup>
+
 </Project>
