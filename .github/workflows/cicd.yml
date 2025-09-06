@@ -32,12 +32,12 @@ jobs:
         uses: actions/setup-dotnet@v3
         with:
           dotnet-version: '8.0.x'
-      - run: dotnet restore
-      - run: dotnet build --configuration Release --no-restore
+      - run: dotnet restore ./ChatWithAI
+      - run: dotnet build ./ChatWithAI --configuration Release --no-restore
       # - name: Run tests
       #   if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event.inputs.run_tests == 'true'
       #   run: dotnet test --no-build --verbosity normal
-      - run: dotnet publish -c Release -o ./publish
+      - run: dotnet publish ./ChatWithAI -c Release -o ./publish
       - uses: actions/upload-artifact@v4
         with:
           name: publish
