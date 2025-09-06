@@ -50,12 +50,8 @@ jobs:
       matrix:
         include:
           - env: preprod
-            host: ${{ secrets.VPS_HOST }}
-            folder: /var/www/codesphere-preprod
             service: codesphere-preprod
           - env: prod
-            host: ${{ secrets.VPS_HOST }}
-            folder: /var/www/codesphere
             service: codesphere
     if: |
       (github.event_name == 'workflow_dispatch' && matrix.env == 'preprod' && github.event.inputs.deploy_preprod == 'true')
@@ -70,16 +66,16 @@ jobs:
       - name: Copy files to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ matrix.host }}
+          host: ${{ secrets.VPS_HOST }}
           username: deploy
           key: ${{ secrets.VPS_SSH_KEY }}
           source: "publish/*"
-          target: ${{ matrix.folder }}
+          target: /var/www/${{ matrix.service }}
 
       - name: Restart service
         uses: appleboy/ssh-action@v1.1.0
         with:
-          host: ${{ matrix.host }}
+          host: ${{ secrets.VPS_HOST }}
           username: deploy
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
