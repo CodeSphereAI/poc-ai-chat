@@ -1,0 +1,83 @@
+name: CodeSphere API CI/CD
+
+on:
+  pull_request:
+    branches: ["*"]
+
+  workflow_dispatch:
+    inputs:
+      run_tests:
+        description: "Run tests?"
+        required: true
+        default: "true"
+        type: boolean
+      deploy_preprod:
+        description: "Deploy to preprod?"
+        required: true
+        default: "false"
+        type: boolean
+
+  push:
+    branches:
+      - master
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-name: publish
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet restore ./ChatWithAI
+      - run: dotnet build ./ChatWithAI --configuration Release --no-restore
+      # - name: Run tests
+      #   if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event.inputs.run_tests == 'true'
+      #   run: dotnet test --no-build --verbosity normal
+      - run: dotnet publish ./ChatWithAI -c Release -o ./publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: publish
+          path: ./publish
+
+  deploy:
+    needs: build-test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - env: preprod
+            service: codesphere-preprod
+          - env: prod
+            service: codesphere
+    steps:
+      - name: Download publish artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: publish
+          path: ./publish
+
+      - name: Deploy
+        if: (github.event_name == 'workflow_dispatch' && matrix.env == 'preprod' && github.event.inputs.deploy_preprod == 'true') ||
+            (github.event_name == 'push' && matrix.env == 'prod' && github.ref == 'refs/heads/master')
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: deploy
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "publish/*"
+          target: /var/www/${{ matrix.service }}
+
+      - name: Restart service
+        if: (github.event_name == 'workflow_dispatch' && matrix.env == 'preprod' && github.event.inputs.deploy_preprod == 'true') ||
+            (github.event_name == 'push' && matrix.env == 'prod' && github.ref == 'refs/heads/master')
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: deploy
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            sudo systemctl restart ${{ matrix.service }}
