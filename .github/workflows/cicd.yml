@@ -1,0 +1,86 @@
+name: CodeSphere API CI/CD
+
+on:
+  pull_request:
+    branches: ["*"]
+
+  workflow_dispatch:
+    inputs:
+      run_tests:
+        description: "Run tests?"
+        required: true
+        default: "true"
+        type: boolean
+      deploy_preprod:
+        description: "Deploy to preprod?"
+        required: true
+        default: "false"
+        type: boolean
+
+  push:
+    branches:
+      - master
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-name: publish
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet restore
+      - run: dotnet build --configuration Release --no-restore
+      # - name: Run tests
+      #   if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event.inputs.run_tests == 'true'
+      #   run: dotnet test --no-build --verbosity normal
+      - run: dotnet publish -c Release -o ./publish
+      - uses: actions/upload-artifact@v3
+        with:
+          name: publish
+          path: ./publish
+
+  deploy:
+    needs: build-test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - env: preprod
+            host: ${{ secrets.VPS_HOST }}
+            folder: /var/www/codesphere-preprod
+            service: codesphere-preprod
+          - env: prod
+            host: ${{ secrets.VPS_HOST }}
+            folder: /var/www/codesphere
+            service: codesphere
+    if: |
+      (github.event_name == 'workflow_dispatch' && matrix.env == 'preprod' && github.event.inputs.deploy_preprod == 'true')
+      || (github.event_name == 'push' && matrix.env == 'prod' && github.ref == 'refs/heads/master')
+    steps:
+      - name: Download publish artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: publish
+          path: ./publish
+
+      - name: Copy files to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ matrix.host }}
+          username: deploy
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "publish/*"
+          target: ${{ matrix.folder }}
+
+      - name: Restart service
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: ${{ matrix.host }}
+          username: deploy
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            sudo systemctl restart ${{ matrix.service }}
