@@ -53,9 +53,6 @@ jobs:
             service: codesphere-preprod
           - env: prod
             service: codesphere
-    if: |
-      (github.event_name == 'workflow_dispatch' && matrix.env == 'preprod' && github.event.inputs.deploy_preprod == 'true')
-      || (github.event_name == 'push' && matrix.env == 'prod' && github.ref == 'refs/heads/master')
     steps:
       - name: Download publish artifact
         uses: actions/download-artifact@v3
@@ -63,7 +60,9 @@ jobs:
           name: publish
           path: ./publish
 
-      - name: Copy files to VPS
+      - name: Deploy
+        if: (github.event_name == 'workflow_dispatch' && matrix.env == 'preprod' && github.event.inputs.deploy_preprod == 'true') ||
+            (github.event_name == 'push' && matrix.env == 'prod' && github.ref == 'refs/heads/master')
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -73,6 +72,8 @@ jobs:
           target: /var/www/${{ matrix.service }}
 
       - name: Restart service
+        if: (github.event_name == 'workflow_dispatch' && matrix.env == 'preprod' && github.event.inputs.deploy_preprod == 'true') ||
+            (github.event_name == 'push' && matrix.env == 'prod' && github.ref == 'refs/heads/master')
         uses: appleboy/ssh-action@v1.1.0
         with:
           host: ${{ secrets.VPS_HOST }}
